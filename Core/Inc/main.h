@@ -60,12 +60,18 @@ void SystemClock_Config(void);
 #define Debug_UART_TX_GPIO_Port GPIOB
 #define Debug_UART_RX_Pin GPIO_PIN_11
 #define Debug_UART_RX_GPIO_Port GPIOB
+#define Relay2_Pin GPIO_PIN_9
+#define Relay2_GPIO_Port GPIOA
+#define Relay1_Pin GPIO_PIN_10
+#define Relay1_GPIO_Port GPIOA
 #define External_LED_Pin GPIO_PIN_11
 #define External_LED_GPIO_Port GPIOA
 #define Programmer_DIO_Pin GPIO_PIN_13
 #define Programmer_DIO_GPIO_Port GPIOA
 #define Programmer_CLK_Pin GPIO_PIN_14
 #define Programmer_CLK_GPIO_Port GPIOA
+#define RFM69_NSS_Pin GPIO_PIN_15
+#define RFM69_NSS_GPIO_Port GPIOA
 #define Debug_LED_Pin GPIO_PIN_8
 #define Debug_LED_GPIO_Port GPIOB
 

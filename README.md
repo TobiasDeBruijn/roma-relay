@@ -1,10 +1,5 @@
-# stm32-cmake-template
-Template for an STM32 C project with CMake support, while keeping support for CubeMX's HAL types.
-
-## Features
-- CMake build system
-- Compatible with CubeMX & CubeIDE
->Note: CubeIDE completely ignores whatever you do in CMake, it does its own thing
+# roma-relay
+STM32-based relay controller for the Roma project.
 
 ## Compiling
 Requirments:

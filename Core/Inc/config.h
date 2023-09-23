@@ -1,4 +1,7 @@
-#ifndef INC_CONFIG_H_
-#define INC_CONFIG_H_
+#ifndef ROMA_CONFIG_H
+#define ROMA_CONFIG_H
 
-#endif /* INC_CONFIG_H_ */
+#define RfmNetworkId 13
+#define RfmOwnId 0x13
+
+#endif /* ROMA_CONFIG_H */
