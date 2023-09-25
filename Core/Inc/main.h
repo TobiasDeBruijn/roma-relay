@@ -32,11 +32,12 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stm32l1xx_hal.h"
+#include "rfm69/include/rfm69.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-
+extern RFM69 RFM;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/

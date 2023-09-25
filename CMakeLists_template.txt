@@ -34,6 +34,7 @@ add_compile_options(-ffunction-sections -fdata-sections -fno-common -fmessage-le
 
 include_directories(Library)
 include_directories(Library/rfm69)
+include_directories(Library/rfm-protocol)
 
 # Enable assembler files preprocessing
 add_compile_options($<$<COMPILE_LANGUAGE:ASM>:-x$<SEMICOLON>assembler-with-cpp>)
@@ -57,6 +58,8 @@ include_directories(${includes})
 add_definitions(${defines})
 
 file(GLOB_RECURSE SOURCES ${sources})
+file(GLOB_RECURSE LIBRARY_SOURCES FOLLOW_SYMLINKS
+        ${CMAKE_CURRENT_SOURCE_DIR}/Library/**/src/*.c)
 
 set(LINKER_SCRIPT $${CMAKE_SOURCE_DIR}/${linkerScript})
 
@@ -64,7 +67,7 @@ add_link_options(-Wl,-gc-sections,--print-memory-usage,-Map=$${PROJECT_BINARY_DI
 add_link_options(-mcpu=${mcpu} -mthumb -mthumb-interwork --specs=nano.specs)
 add_link_options(-T $${LINKER_SCRIPT})
 
-add_executable($${PROJECT_NAME}.elf $${SOURCES} $${LINKER_SCRIPT})
+add_executable($${PROJECT_NAME}.elf $${SOURCES} $${LIBRARY_SOURCES} $${LINKER_SCRIPT})
 
 set(HEX_FILE $${PROJECT_BINARY_DIR}/$${PROJECT_NAME}.hex)
 set(BIN_FILE $${PROJECT_BINARY_DIR}/$${PROJECT_NAME}.bin)
