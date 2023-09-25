@@ -9,6 +9,10 @@
 #include "config.h"
 #include "rfm69/include/rfm69.h"
 #include "rfm-protocol/include/command.h"
+#include "rfm-protocol/include/settings.h"
+#include "ack.h"
+#include "command_handler.h"
+#include "settings.h"
 
 /* USER CODE END Includes */
 
@@ -39,6 +43,8 @@ static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
+HAL_StatusTypeDef check_expected_acks(AckManager* ackManager, RFM69* rfm);
+HAL_StatusTypeDef handle_packet_received(RFM69* rfm, AckManager* ackManager);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -74,7 +80,9 @@ int main(void)
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   RFM = get_rfm(&hspi1, RFM69_NSS_GPIO_Port, RFM69_NSS_Pin, RfmOwnId);
+  AckManager ackManager = init_ackmanager();
 
+  // Initialize the RFM69
   HAL_StatusTypeDef result = init(&RFM, RfmNetworkId);
   if(result != HAL_OK) {
     debug_print("Failed to init RFM");
@@ -82,6 +90,15 @@ int main(void)
     return 1;
   }
 
+  // Request settings from the gateway
+  result = request_settings(&ackManager, &RFM);
+  if(result != HAL_OK) {
+    debug_print("Failed to request new settings");
+    Error_Handler();
+    return 1;
+  }
+
+  // Start listening for commands and the settings reply
   result = receive_begin(&RFM);
   if(result != HAL_OK) {
     debug_print("Failed to start receiving on RFM");
@@ -93,18 +110,24 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1) {
-    if(RFM.datalen > 0) {
-      if(RFM.data[0] == CommandPacketIdentifier) {
-        CommandPacket packet;
-        int deserializeResult = deserialize_command(&packet, RFM.data);
+    // Check for any ACKs were still expecting but have not yet received.
+    // Send out the data again
+    result = check_expected_acks(&ackManager, &RFM);
+    if(result != HAL_OK) {
+      Error_Handler();
+      return 1;
+    }
 
-        if(deserializeResult != 0) {
-          debug_print("Failed to deserialize command packet");
-        } else {
-          // TODO
-        }
+    // We've received a message
+    if(RFM.datalen > 0) {
+
+      // Process the received message
+      result = handle_packet_received(&RFM, &ackManager);
+      if(result != HAL_OK) {
+        return 1;
       }
 
+      // Reset and start listening again
       RFM.datalen = 0;
       result = receive_begin(&RFM);
       if(result != HAL_OK) {
@@ -308,6 +331,114 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/**
+ * Check for any ACKs were still waiting to receive.
+ * Resend the data if necessary.
+ * @param ackManager The ACK manager
+ * @param rfm RFM transceiver
+ * @return Status result
+ */
+HAL_StatusTypeDef check_expected_acks(AckManager* ackManager, RFM69* rfm) {
+  Ack pendingAcks[ackManager->lastExpectingAckIndex + 1];
+  int pendingCount = get_pending_acks(ackManager, pendingAcks);
+
+  for(int i = 0; i < pendingCount; i++) {
+    Ack pendingAck = pendingAcks[i];
+
+    HAL_StatusTypeDef result = send(rfm, RfmOwnId, RfmGatewayId, pendingAck.data, pendingAck.datalen);
+    if(result != HAL_OK) {
+      return result;
+    }
+
+    remove_ack(ackManager, pendingAck.ackId);
+    add_ack(ackManager, pendingAck);
+  }
+
+  return HAL_OK;
+}
+
+/**
+ * Handle a received packet and apply its data.
+ * @param rfm RFM transceiver
+ * @param ackManager The ACK manager
+ * @return Status result
+ */
+HAL_StatusTypeDef handle_packet_received(RFM69* rfm, AckManager* ackManager) {
+  switch(rfm->data[0]) {
+    case CommandPacketIdentifier: {
+      CommandPacket packet;
+      deserialize_command(&packet, RFM.data);
+
+      if(packet.serialNumber != SerialNumber) {
+        return HAL_OK;
+      }
+
+      // ACK packet
+      if((packet.flags & CommandPacket_Flag_isAck) != 0) {
+        remove_ack(ackManager, packet.ackId);
+        return HAL_OK;
+      }
+
+      // Construct ACK
+      CommandPacket ackPacket;
+      ackPacket.serialNumber = SerialNumber;
+      ackPacket.ackId = generate_ack_id();
+      ackPacket.flags = CommandPacket_Flag_isAck;
+
+      // Send ACK
+      uint8_t buffer[32];
+      int length = serialize_command(buffer, &ackPacket);
+      HAL_StatusTypeDef result = send(rfm, RfmOwnId, RfmGatewayId, buffer, length);
+      if(result != HAL_OK) {
+        return result;
+      }
+
+      execute_command_packet(&packet);
+      break;
+    }
+    case SettingsPacketIdentifier: {
+      SettingsPacket packet;
+      deserialize_settings(&packet, RFM.data);
+
+      if(packet.serialNumber != SerialNumber) {
+        return HAL_OK;
+      }
+
+      // ACK packet
+      if((packet.flags & SettingsPacket_Flag_isAck) != 0) {
+        remove_ack(ackManager, packet.ackId);
+        return HAL_OK;
+      }
+
+      // Construct ACK
+      SettingsPacket ackPacket;
+      ackPacket.serialNumber = SerialNumber;
+      ackPacket.ackId = generate_ack_id();
+      ackPacket.flags = SettingsPacket_Flag_isAck;
+
+      // Send ACK
+      uint8_t buffer[32];
+      int length = serialize_settings(buffer, &ackPacket);
+      HAL_StatusTypeDef result = send(rfm, RfmOwnId, RfmGatewayId, buffer, length);
+      if(result != HAL_OK) {
+        return result;
+      }
+
+      // Apply the settings
+      if(packet.onOff.relay1DefaultOn) {
+        HAL_GPIO_WritePin(Relay1_GPIO_Port, Relay1_Pin, GPIO_PIN_SET);
+      }
+
+      if(packet.onOff.relay2DefaultOn) {
+        HAL_GPIO_WritePin(Relay2_GPIO_Port, Relay2_Pin, GPIO_PIN_SET);
+      }
+
+      break;
+    }
+  }
+
+  return HAL_OK;
+}
 /* USER CODE END 4 */
 
 /**

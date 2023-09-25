@@ -5,5 +5,6 @@
 
 #define RfmNetworkId 13
 #define RfmOwnId 0x13
+#define RfmGatewayId 0x14
 
 #endif /* ROMA_CONFIG_H */

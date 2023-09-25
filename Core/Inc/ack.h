@@ -13,6 +13,7 @@
 
 typedef struct Ack {
     uint16_t ackId;
+    uint8_t datalen;
     uint8_t data[MaxAckDataLen];
 } Ack;
 
@@ -32,6 +33,8 @@ AckManager init_ackmanager();
 Ack create_ack(uint16_t ackId, const uint8_t* data, uint8_t len);
 void add_ack(AckManager* manager, Ack ack);
 bool has_ack(AckManager* manager, uint16_t ackId);
+int get_pending_acks(AckManager* manager, Ack* out);
 void remove_ack(AckManager* manager, uint16_t ackId);
+uint16_t generate_ack_id();
 
 #endif //ROMA_RELAY_ACK_H
